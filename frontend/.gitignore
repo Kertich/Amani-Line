@@ -1,0 +1,9 @@
+# Python local files
+__pycache__/
+*.pyc
+
+# Frontend dependencies
+node_modules/
+
+# Environments and Secrets
+.env
