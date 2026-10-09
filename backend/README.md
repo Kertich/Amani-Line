@@ -18,7 +18,7 @@ pip install -r requirements.txt
 5. Start the API:
 
 ```powershell
-uvicorn app.main:app --reload
+uvicorn backend.main:app --reload
 ```
 
 The interactive API docs are available at `http://localhost:8000/docs`.

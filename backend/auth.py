@@ -3,7 +3,7 @@ from typing import Any
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from .supabase import get_auth_client
+from supabase_client import get_auth_client
 
 bearer_scheme = HTTPBearer(auto_error=False)
 

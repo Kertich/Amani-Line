@@ -7,6 +7,12 @@ from pydantic import BaseModel, Field
 class AuthCredentials(BaseModel):
     email: str
     password: str = Field(min_length=8)
+    
+    
+# 1. Define the structure of your response data
+class HealthCheckResponse(BaseModel):
+    status: str
+    data: int | None
 
 
 class ReportCreate(BaseModel):

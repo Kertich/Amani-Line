@@ -1,0 +1,109 @@
+import enum
+import uuid
+from datetime import datetime
+from typing import Optional
+from sqlalchemy import String, Text, DateTime, ForeignKey, text
+from sqlalchemy.dialects.postgresql import UUID, ENUM
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+# 1. Base Class for Models
+class Base(DeclarativeBase):
+    pass
+
+# 2. Native Python Enums for PostgreSQL Enum Mapping
+class ReportStatus(str, enum.Enum):
+    PENDING = "pending"
+    REVIEWING = "reviewing"
+    RESOLVED = "resolved"
+    DISMISSED = "dismissed"
+
+class UpdateStatus(str, enum.Enum):
+    CONFIRMED = "confirmed"
+    PENDING = "pending"
+    FALSE = "false"
+
+# 3. Community Updates Model
+class CommunityUpdate(Base):
+    __tablename__ = "community_updates"
+    __table_args__ = {"schema": "public"}
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), 
+        primary_key=True, 
+        server_default=text("gen_random_uuid()")
+    )
+    status: Mapped[UpdateStatus] = mapped_column(
+        ENUM(UpdateStatus, name="update_status", schema="public"),
+        nullable=False,
+        server_default=UpdateStatus.PENDING.value
+    )
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    detail: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), 
+        nullable=False, 
+        server_default=text("now()")
+    )
+
+# 4. Reports Model
+class Report(Base):
+    __tablename__ = "reports"
+    __table_args__ = {"schema": "public"}
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), 
+        primary_key=True, 
+        server_default=text("gen_random_uuid()")
+    )
+    # The default computes the AMN-XXXXXX pattern exactly like your SQL schema
+    reference: Mapped[str] = mapped_column(
+        String, 
+        nullable=False, 
+        unique=True,
+        server_default=text("('AMN-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 6))))")
+    )
+    # Links to Supabase's internal auth.users table
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth.users.id", ondelete="SET NULL"),
+        nullable=True
+    )
+    report_type: Mapped[str] = mapped_column(String, nullable=False) # 'Rumour to check', 'Local issue', 'Safety concern'
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    attachment_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    status: Mapped[ReportStatus] = mapped_column(
+        ENUM(ReportStatus, name="report_status", schema="public"),
+        nullable=False,
+        server_default=ReportStatus.PENDING.value
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), 
+        nullable=False, 
+        server_default=text("now()")
+    )
+
+# 5. Dispute Requests Model
+class DisputeRequest(Base):
+    __tablename__ = "dispute_requests"
+    __table_args__ = {"schema": "public"}
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), 
+        primary_key=True, 
+        server_default=text("gen_random_uuid()")
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth.users.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    concern_type: Mapped[str] = mapped_column(String, nullable=False)
+    desired_outcome: Mapped[str] = mapped_column(Text, nullable=False)
+    contact_phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    status: Mapped[str] = mapped_column(String, nullable=False, server_default="received")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), 
+        nullable=False, 
+        server_default=text("now()")
+    )

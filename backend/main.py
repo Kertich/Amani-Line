@@ -1,24 +1,49 @@
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import PurePosixPath
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
+
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
+from database import engine, get_db
+from model import Base 
+
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import Client
 
-from .auth import get_current_user, get_optional_user
-from .config import get_settings
-from .schemas import (
+from auth import get_current_user, get_optional_user
+from config import get_settings
+from schemas import (
     AuthCredentials,
     DisputeCreate,
     ReportCreate,
     UpdateResponse,
     UploadUrlCreate,
+    HealthCheckResponse,
 )
-from .supabase import get_admin_client, get_auth_client
+from supabase_client import get_admin_client, get_auth_client
 
 settings = get_settings()
-app = FastAPI(title="Amani Line API", version="1.0.0")
+
+# 1. Define the Lifespan Setup
+#@asynccontextmanager
+#async def lifespan(app: FastAPI):
+    # Everything inside this block runs BEFORE the API starts accepting traffic
+   # print("⏳ Synchronizing database tables with Supabase...")
+    #async with engine.begin() as conn:
+        # This line executes your Python code into actual SQL tables
+       #commented# await conn.run_sync(Base.metadata.create_all)
+    #print("✅ Database synchronization complete!")
+    
+    #yield
+    # Everything down here runs when you shut down the server (Ctrl + C)
+    #await engine.dispose()
+    
+# 2. Initialize FastAPI with the lifespan hook
+#lifespan=lifespan
+app = FastAPI(title="Amani Line API", version="1.0.0" )
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,
@@ -34,9 +59,11 @@ def _first(data):
     return data[0] if isinstance(data, list) else data
 
 
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+# 2. Add it directly as the response model and return type hint
+@app.get("/healthcheck", response_model=HealthCheckResponse)
+async def health_check(db: AsyncSession = Depends(get_db)) -> HealthCheckResponse:
+    result = await db.execute(text("SELECT 1"))
+    return HealthCheckResponse(status="connected", data=result.scalar())
 
 
 @app.post("/api/auth/signup", status_code=status.HTTP_201_CREATED)

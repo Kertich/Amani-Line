@@ -7,3 +7,58 @@ node_modules/
 
 # Environments and Secrets
 .env
+.venv/
+
+# === uv Specific Ignored Files ===
+.uv/
+.python-version
+
+# === Environment Variables & Secrets ===
+.env
+.env.*
+!.env.example
+
+# === Python Virtual Environments ===
+venv/
+.venv/
+env/
+ENV/
+__pypackages__/
+
+# === Python Caches and Compiled Files ===
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# === Databases & Logs ===
+*.db
+*.sqlite3
+*.sqlite3-journal
+*.log
+
+# === IDEs & Editors ===
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# === OS Specific Files ===
+.DS_Store
+Thumbs.db
+
+# === Deployment & Cloud Specific (Optional) ===
+.fastapicloudignore
+dist/
+build/
+*.egg-info/
+
+# === Database Dumps & Exports ===
+*.sql
+
