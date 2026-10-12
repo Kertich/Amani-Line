@@ -11,22 +11,35 @@ class Settings(BaseSettings):
     supabase_service_role_key: str
     cors_origins: str = "http://localhost:5173"
     storage_bucket: str = "report-attachments"
-    
-    
-    # Add the database_url field so Pydantic expects it from your .env
+    admin_emails: str = ""
+    verification_queue_emails: str = ""
     database_url: str = Field(default="postgresql+asyncpg://fallback_if_missing")
 
     model_config = SettingsConfigDict(
-        env_file=".env", 
+        env_file=".env",
         env_file_encoding="utf-8",
-         extra="ignore"  # 💡 Pro-Tip: Changing "forbid" to "ignore" prevents future unexpected .env fields from crashing your app
-        )
-    
-    
+        extra="ignore",
+    )
 
     @property
     def allowed_origins(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def verification_queue_email_set(self) -> set[str]:
+        return {
+            email.strip().casefold()
+            for email in self.verification_queue_emails.split(",")
+            if email.strip()
+        }
+
+    @property
+    def admin_email_set(self) -> set[str]:
+        return {
+            email.strip().casefold()
+            for email in self.admin_emails.split(",")
+            if email.strip()
+        }
 
 
 @lru_cache

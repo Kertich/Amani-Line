@@ -1,9 +1,43 @@
 import { useState } from "react";
+import { createDispute } from "../api";
 import { Icon } from "./common";
 
-export function Resolve({ navigate }) {
+const concernTypes = [
+  "Land or boundary",
+  "Home or tenancy",
+  "Noise or neighbour concern",
+  "Something else",
+];
+
+export function Resolve({ navigate, token }) {
   const [step, setStep] = useState(1);
   const [done, setDone] = useState(false);
+  const [concernType, setConcernType] = useState("");
+  const [desiredOutcome, setDesiredOutcome] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submitRequest() {
+    setLoading(true);
+    setError("");
+    try {
+      await createDispute(
+        {
+          concern_type: concernType,
+          desired_outcome: desiredOutcome.trim(),
+          contact_phone: contactPhone.trim() || null,
+        },
+        token,
+      );
+      setDone(true);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   if (done)
     return (
       <main className="form-page">
@@ -26,6 +60,7 @@ export function Resolve({ navigate }) {
         </section>
       </main>
     );
+
   return (
     <main className="form-page">
       <button className="back" onClick={() => navigate("home")}>
@@ -53,39 +88,61 @@ export function Resolve({ navigate }) {
             <>
               <label>What is the concern about?</label>
               <div className="select-list">
-                <button>
-                  Land or boundary <b>›</b>
-                </button>
-                <button>
-                  Home or tenancy <b>›</b>
-                </button>
-                <button>
-                  Noise or neighbour concern <b>›</b>
-                </button>
-                <button>
-                  Something else <b>›</b>
-                </button>
+                {concernTypes.map((type) => (
+                  <button
+                    type="button"
+                    className={concernType === type ? "selected" : ""}
+                    onClick={() => {
+                      setConcernType(type);
+                      setError("");
+                      setStep(2);
+                    }}
+                    key={type}
+                  >
+                    {type} <b>›</b>
+                  </button>
+                ))}
               </div>
             </>
           )}
           {step === 2 && (
             <>
-              <label>What outcome would help?</label>
+              <label htmlFor="desired-outcome">What outcome would help?</label>
               <textarea
+                id="desired-outcome"
+                value={desiredOutcome}
+                onChange={(event) => setDesiredOutcome(event.target.value)}
                 placeholder="Describe the outcome you hope for..."
+                maxLength={5000}
                 rows="6"
+                required
               ></textarea>
             </>
           )}
           {step === 3 && (
             <>
-              <label>How should a local resolver reach you?</label>
-              <input placeholder="Phone number (optional)" />
+              <label htmlFor="contact-phone">
+                How should a local resolver reach you?
+              </label>
+              <input
+                id="contact-phone"
+                type="tel"
+                autoComplete="tel"
+                maxLength={40}
+                value={contactPhone}
+                onChange={(event) => setContactPhone(event.target.value)}
+                placeholder="Phone number (optional)"
+              />
               <p className="privacy-inline">
                 ⌑ Your details stay private and are only used to follow up on
                 this request.
               </p>
             </>
+          )}
+          {error && (
+            <p className="form-message error-message" role="alert">
+              {error}
+            </p>
           )}
           <div className="form-foot">
             <button
@@ -93,14 +150,25 @@ export function Resolve({ navigate }) {
               onClick={() =>
                 step === 1 ? navigate("home") : setStep(step - 1)
               }
+              disabled={loading}
             >
               {step === 1 ? "Cancel" : "Back"}
             </button>
             <button
               className="primary"
-              onClick={() => (step === 3 ? setDone(true) : setStep(step + 1))}
+              onClick={() =>
+                step === 3 ? submitRequest() : setStep(step + 1)
+              }
+              disabled={
+                loading || (step === 2 && !desiredOutcome.trim())
+              }
             >
-              {step === 3 ? "Send request" : "Continue"} <Icon name="arrow" />
+              {loading
+                ? "Sending..."
+                : step === 3
+                  ? "Send request"
+                  : "Continue"}
+              {!loading && <Icon name="arrow" />}
             </button>
           </div>
         </div>

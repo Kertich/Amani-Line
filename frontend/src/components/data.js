@@ -1,32 +1,3 @@
-export const updates = [
-  {
-    status: "Confirmed",
-    title: "Water supply interruption — Estate B",
-    detail:
-      "Planned repair work will affect Estate B today from 9:00 AM to 4:00 PM.",
-    source: "Mavoko Water notice",
-    time: "Updated 18 min ago",
-    icon: "💧",
-  },
-  {
-    status: "Pending",
-    title: "Road closure near Mlolongo Market",
-    detail:
-      "We are checking reports of a temporary closure near the market entrance.",
-    source: "2 community reports",
-    time: "Updated 42 min ago",
-    icon: "🚧",
-  },
-  {
-    status: "False",
-    title: "Rumour: School closure tomorrow",
-    detail: "This claim is not true. Schools in the area remain open as usual.",
-    source: "Confirmed with school administration",
-    time: "Updated 2 hr ago",
-    icon: "📚",
-  },
-];
-
 export const copy = {
   en: {
     nav: ["Home", "Community updates", "How it works"],

@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Icon } from "./common";
+import { createReport } from "../api";
 
 export function Report({
   reportType,
@@ -7,8 +9,13 @@ export function Report({
   setReport,
   submitted,
   setSubmitted,
+  reference,
+  setReference,
   navigate,
 }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
   if (submitted)
     return (
       <main className="form-page">
@@ -27,7 +34,7 @@ export function Report({
           </p>
           <div className="reference">
             <span>Your reference</span>
-            <b>AMN-2408</b>
+            <b>{reference}</b>
           </div>
           <button className="primary" onClick={() => navigate("digest")}>
             See community updates <Icon name="arrow" />
@@ -37,6 +44,8 @@ export function Report({
             onClick={() => {
               setSubmitted(false);
               setReport("");
+              setReference("");
+              setError("");
             }}
           >
             Send another report
@@ -71,9 +80,23 @@ export function Report({
           </div>
         </div>
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            if (report.trim()) setSubmitted(true);
+            if (!report.trim()) return;
+            setLoading(true);
+            setError("");
+            try {
+              const result = await createReport({
+                report_type: reportType,
+                description: report.trim(),
+              });
+              setReference(result.reference);
+              setSubmitted(true);
+            } catch (requestError) {
+              setError(requestError.message);
+            } finally {
+              setLoading(false);
+            }
           }}
         >
           <label>What would you like to report?</label>
@@ -94,16 +117,22 @@ export function Report({
           <label htmlFor="report">Tell us a little more</label>
           <textarea
             id="report"
+            maxLength={5000}
             value={report}
             onChange={(e) => setReport(e.target.value)}
             placeholder="For example: I heard water will be off all week in Estate B. Is that true?"
             rows="6"
             required
           ></textarea>
+          {error && (
+            <p className="form-message error-message" role="alert">
+              {error}
+            </p>
+          )}
           <div className="form-foot">
             <span>You can write in English or Kiswahili.</span>
-            <button className="primary" type="submit">
-              Send report <Icon name="send" />
+            <button className="primary" type="submit" disabled={loading}>
+              {loading ? "Sending..." : "Send report"} {!loading && <Icon name="send" />}
             </button>
           </div>
         </form>
