@@ -1,9 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
-import { assignReport, getReportQueue, getReviewers, publishReport } from "../api";
+import {
+  assignReport,
+  clearReportPii,
+  getPiiEscalations,
+  getReportQueue,
+  getReviewers,
+  publishReport,
+} from "../api";
 import { Icon } from "./common";
 
 export function VerificationQueue({ navigate, admin = false }) {
   const [reports, setReports] = useState([]);
+  const [piiEscalations, setPiiEscalations] = useState([]);
+  const [redactions, setRedactions] = useState({});
   const [drafts, setDrafts] = useState({});
   const [reviewers, setReviewers] = useState([]);
   const [assignments, setAssignments] = useState({});
@@ -17,8 +26,13 @@ export function VerificationQueue({ navigate, admin = false }) {
     setLoading(true);
     setError("");
     try {
-      const items = await getReportQueue();
+      const [items, reviewerItems, escalatedItems] = await Promise.all([
+        getReportQueue(),
+        admin ? getReviewers() : Promise.resolve([]),
+        admin ? getPiiEscalations() : Promise.resolve([]),
+      ]);
       setReports(items);
+      setPiiEscalations(escalatedItems);
       setAssignments((current) => {
         const next = { ...current };
         for (const item of items) {
@@ -28,7 +42,7 @@ export function VerificationQueue({ navigate, admin = false }) {
         }
         return next;
       });
-      if (admin) setReviewers(await getReviewers());
+      if (admin) setReviewers(reviewerItems);
       setDrafts((current) => {
         const next = { ...current };
         for (const item of items) {
@@ -115,6 +129,37 @@ export function VerificationQueue({ navigate, admin = false }) {
     }
   }
 
+  async function handleClearPii(report) {
+    const description = redactions[report.id]?.trim();
+    if (!description) return;
+    setAssigningId(report.id);
+    setError("");
+    setMessage("");
+    try {
+      const updated = await clearReportPii(report.id, description);
+      setPiiEscalations((current) =>
+        current.filter((item) => item.id !== report.id),
+      );
+      setReports((current) => [...current, updated]);
+      setDrafts((current) => ({
+        ...current,
+        [report.id]: {
+          status: "confirmed",
+          title: "",
+          detail: updated.ai_summary || updated.description,
+          source: "",
+        },
+      }));
+      setMessage(
+        `${report.reference} was redacted by an administrator and returned for human review.`,
+      );
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setAssigningId("");
+    }
+  }
+
   return (
     <main className="inner-page">
       <button className="back" onClick={() => navigate("home")}>
@@ -139,10 +184,63 @@ export function VerificationQueue({ navigate, admin = false }) {
 
       {message && <p className="form-message" role="status">{message}</p>}
       {error && <p className="form-message error-message" role="alert">{error}</p>}
+      {admin && piiEscalations.length > 0 && (
+        <section className="pii-escalations" aria-labelledby="pii-escalations-heading">
+          <h2 id="pii-escalations-heading">Private safety escalations</h2>
+          <p>
+            These reports are hidden from the standard reviewer queue and cannot
+            be published until an administrator removes identifying details.
+          </p>
+          <div className="verification-list">
+            {piiEscalations.map((report) => (
+              <article className="verification-card" key={report.id}>
+                <div className="verification-meta">
+                  <strong>{report.reference}</strong>
+                  <span>Private review required</span>
+                  <time dateTime={report.created_at}>
+                    {new Date(report.created_at).toLocaleString()}
+                  </time>
+                </div>
+                <p className="reported-description">{report.description}</p>
+                <label>
+                  Redacted version for human review
+                  <textarea
+                    value={redactions[report.id] || ""}
+                    maxLength={5000}
+                    rows={3}
+                    onChange={(event) =>
+                      setRedactions((current) => ({
+                        ...current,
+                        [report.id]: event.target.value,
+                      }))
+                    }
+                    placeholder="Remove names, phone numbers, and identifying details"
+                    disabled={assigningId === report.id}
+                  />
+                </label>
+                <button
+                  className="secondary-button"
+                  onClick={() => handleClearPii(report)}
+                  disabled={
+                    assigningId === report.id ||
+                    !redactions[report.id]?.trim()
+                  }
+                >
+                  {assigningId === report.id
+                    ? "Saving redaction..."
+                    : "Save redaction and return to review"}
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
       {loading ? (
         <p className="form-message" role="status">Loading reports to review...</p>
       ) : error && reports.length === 0 ? null : reports.length === 0 ? (
-        <p className="form-message">The verification queue is clear.</p>
+        piiEscalations.length === 0 && (
+          <p className="form-message">The verification queue is clear.</p>
+        )
       ) : (
         <div className="verification-list">
           {reports.map((report) => {
@@ -159,6 +257,45 @@ export function VerificationQueue({ navigate, admin = false }) {
                   </time>
                 </div>
                 <p className="reported-description">{report.description}</p>
+                {(report.ai_summary ||
+                  report.ai_category ||
+                  report.ai_review_required ||
+                  report.duplicate_count > 0) && (
+                  <aside className="ai-triage" aria-label="AI triage suggestions">
+                    <strong>AI assistance — unverified; use your own judgment</strong>
+                    <p>
+                      Language: {report.ai_language || "unknown"}
+                      {report.ai_category &&
+                        ` · Suggested category: ${report.ai_category}`}
+                      {report.ai_confidence != null &&
+                        ` · Confidence: ${Math.round(report.ai_confidence * 100)}%`}
+                      {report.ai_dispute_category &&
+                        ` · Suggested mediator: ${report.ai_dispute_category}`}
+                    </p>
+                    {report.ai_summary && (
+                      <p><strong>Draft summary:</strong> {report.ai_summary}</p>
+                    )}
+                    {report.ai_normalized_text &&
+                      report.ai_normalized_text !== report.description && (
+                        <p>
+                          <strong>Normalized text:</strong>{" "}
+                          {report.ai_normalized_text}
+                        </p>
+                      )}
+                    {report.ai_review_required && (
+                      <p>
+                        <strong>Human review required:</strong>{" "}
+                        {report.ai_review_reason || "The AI could not classify this reliably."}
+                      </p>
+                    )}
+                    {report.duplicate_count > 0 && (
+                      <p>
+                        Grouped with {report.duplicate_count} similar report
+                        {report.duplicate_count === 1 ? "" : "s"}.
+                      </p>
+                    )}
+                  </aside>
+                )}
                 {admin && (
                   <div className="report-assignment">
                     <label htmlFor={`assignment-${report.id}`}>

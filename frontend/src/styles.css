@@ -664,6 +664,39 @@ footer button {
   font-size: 13px;
   line-height: 1.5;
 }
+.ai-triage {
+  margin: 14px 0;
+  padding: 13px;
+  border-left: 3px solid #9b8b42;
+  background: #f7f4e8;
+  color: #4b5040;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.ai-triage p {
+  margin: 7px 0 0;
+}
+.pii-escalations {
+  margin: 22px 0;
+}
+.pii-escalations > p {
+  color: #66776f;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.pii-escalations .verification-card > label {
+  margin: 15px 0;
+}
+.pii-escalations textarea {
+  display: block;
+  width: 100%;
+  margin-top: 7px;
+  border: 1px solid #d6ddd3;
+  background: #fff;
+  padding: 12px;
+  border-radius: 4px;
+  color: var(--ink);
+}
 .verification-fields {
   display: grid;
   gap: 14px;

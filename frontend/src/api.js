@@ -41,6 +41,20 @@ export function getReportQueue() {
   return request("/api/reports/queue", { token: getStoredToken() });
 }
 
+export function getPiiEscalations() {
+  return request("/api/admin/reports/pii-escalations", {
+    token: getStoredToken(),
+  });
+}
+
+export function clearReportPii(reportId, description) {
+  return request(`/api/admin/reports/${encodeURIComponent(reportId)}/pii-clear`, {
+    method: "POST",
+    token: getStoredToken(),
+    body: JSON.stringify({ description }),
+  });
+}
+
 export function publishReport(reportId, payload) {
   return request(`/api/reports/${encodeURIComponent(reportId)}/publish`, {
     method: "POST",

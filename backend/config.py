@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     admin_emails: str = ""
     verification_queue_emails: str = ""
     database_url: str = Field(default="postgresql+asyncpg://fallback_if_missing")
+    ai_api_key: str = ""
+    ai_base_url: str = "https://api.openai.com/v1"
+    ai_chat_model: str = "gpt-4o-mini"
+    ai_transcription_model: str = "whisper-1"
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -11,7 +11,17 @@ create table if not exists public.reports (
   description text not null check (char_length(description) between 1 and 5000),
   attachment_path text,
   status report_status not null default 'pending',
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  ai_language text,
+  ai_normalized_text text,
+  ai_category text,
+  ai_confidence double precision,
+  ai_dispute_category text,
+  ai_summary text,
+  ai_review_required boolean not null default false,
+  ai_review_reason text,
+  ai_pii_flagged boolean not null default false,
+  ai_duplicate_of uuid references public.reports(id) on delete set null
 );
 
 create table if not exists public.community_updates (

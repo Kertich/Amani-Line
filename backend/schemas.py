@@ -21,6 +21,24 @@ class ReportCreate(BaseModel):
     description: str = Field(min_length=1, max_length=5000)
     attachment_path: str | None = None
 
+    @field_validator("description")
+    @classmethod
+    def require_non_whitespace_description(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Report description cannot be blank")
+        return value
+
+
+class PiiReportRedaction(BaseModel):
+    description: str = Field(min_length=1, max_length=5000)
+
+    @field_validator("description")
+    @classmethod
+    def require_non_whitespace_description(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Report description cannot be blank")
+        return value
+
 
 class ReportReviewCreate(BaseModel):
     status: Literal["confirmed", "false"]
@@ -59,6 +77,15 @@ class ReportQueueResponse(BaseModel):
     status: str
     created_at: datetime
     assigned_to_email: str | None = None
+    ai_language: str | None = None
+    ai_normalized_text: str | None = None
+    ai_category: str | None = None
+    ai_confidence: float | None = None
+    ai_dispute_category: str | None = None
+    ai_summary: str | None = None
+    ai_review_required: bool = False
+    ai_review_reason: str | None = None
+    duplicate_count: int = 0
 
 
 class ReportReviewResponse(BaseModel):

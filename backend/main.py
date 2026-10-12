@@ -1,9 +1,9 @@
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import PurePosixPath
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile, status
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
@@ -25,6 +25,7 @@ from config import get_settings
 from schemas import (
     AuthCredentials,
     DisputeCreate,
+    PiiReportRedaction,
     ReportCreate,
     ReportAssignmentUpdate,
     ReportQueueResponse,
@@ -37,6 +38,16 @@ from schemas import (
     HealthCheckResponse,
 )
 from supabase_client import get_admin_client, get_auth_client
+from triage import (
+    AIProviderError,
+    TriageResult,
+    analyze_report,
+    contains_targeted_pii,
+    detect_language,
+    find_duplicate,
+    normalize_message,
+    transcribe_audio,
+)
 
 settings = get_settings()
 
@@ -70,6 +81,60 @@ def _first(data):
     if not data:
         raise HTTPException(status_code=404, detail="Resource not found")
     return data[0] if isinstance(data, list) else data
+
+
+def _triage_metadata(result: TriageResult, duplicate_of: str | None = None) -> dict:
+    return {
+        "ai_language": result.language,
+        "ai_normalized_text": result.normalized_text,
+        "ai_category": result.category,
+        "ai_confidence": result.confidence,
+        "ai_dispute_category": result.dispute_category,
+        "ai_summary": result.summary,
+        "ai_review_required": result.needs_human_review,
+        "ai_review_reason": result.review_reason,
+        "ai_pii_flagged": result.pii_flagged,
+        "ai_duplicate_of": duplicate_of,
+    }
+
+
+def _manual_review_result(description: str, reason: str) -> TriageResult:
+    return TriageResult(
+        language=detect_language(description),
+        normalized_text=normalize_message(description),
+        category=None,
+        confidence=None,
+        dispute_category=None,
+        summary="",
+        needs_human_review=True,
+        review_reason=reason,
+        pii_flagged=False,
+    )
+
+
+def _find_recent_duplicate(result: TriageResult) -> str | None:
+    if result.pii_flagged or not result.category:
+        return None
+    cutoff = datetime.now(timezone.utc).replace(microsecond=0)
+    cutoff -= timedelta(days=14)
+    try:
+        response = (
+            get_admin_client()
+            .table("reports")
+            .select("id,ai_normalized_text,ai_duplicate_of")
+            .eq("ai_pii_flagged", False)
+            .in_("status", ["pending", "reviewing"])
+            .gte("created_at", cutoff.isoformat())
+            .order("created_at", desc=True)
+            .limit(100)
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Unable to check for similar reports; the report was not saved",
+        ) from exc
+    return find_duplicate(result.normalized_text, response.data)
 
 
 # 2. Add it directly as the response model and return type hint
@@ -112,12 +177,18 @@ def me(user=Depends(get_current_user)):
 
 @app.post("/api/reports", status_code=status.HTTP_201_CREATED)
 def create_report(payload: ReportCreate, user=Depends(get_optional_user)):
+    try:
+        triage = analyze_report(payload.description, get_settings())
+    except AIProviderError:
+        triage = _manual_review_result(payload.description, "provider_unavailable")
+    duplicate_of = _find_recent_duplicate(triage)
     row = {
         "report_type": payload.report_type,
         "description": payload.description,
         "attachment_path": payload.attachment_path,
         "status": "pending",
         "user_id": str(user.id) if user else None,
+        **_triage_metadata(triage, duplicate_of),
     }
     try:
         response = get_admin_client().table("reports").insert(row).execute()
@@ -137,9 +208,13 @@ def list_report_queue(
         get_admin_client()
         .table("reports")
         .select(
-            "id,reference,report_type,description,status,created_at,assigned_to_email"
+            "id,reference,report_type,description,status,created_at,assigned_to_email,"
+            "ai_language,ai_normalized_text,ai_category,ai_confidence,"
+            "ai_dispute_category,ai_summary,ai_review_required,ai_review_reason"
         )
         .in_("status", ["pending", "reviewing"])
+        .eq("ai_pii_flagged", False)
+        .is_("ai_duplicate_of", "null")
         .order("created_at")
         .limit(limit)
     )
@@ -149,7 +224,139 @@ def list_report_queue(
         response = query.execute()
     except Exception as exc:
         raise HTTPException(status_code=500, detail="Unable to load report queue") from exc
+    reports = response.data
+    report_ids = [item["id"] for item in reports]
+    duplicate_counts: dict[str, int] = {}
+    if report_ids:
+        try:
+            duplicates = (
+                get_admin_client()
+                .table("reports")
+                .select("ai_duplicate_of")
+                .in_("ai_duplicate_of", report_ids)
+                .execute()
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=500,
+                detail="Unable to load grouped duplicate reports",
+            ) from exc
+        for duplicate in duplicates.data:
+            root_id = duplicate["ai_duplicate_of"]
+            duplicate_counts[root_id] = duplicate_counts.get(root_id, 0) + 1
+    return [
+        {**item, "duplicate_count": duplicate_counts.get(item["id"], 0)}
+        for item in reports
+    ]
+
+
+@app.get(
+    "/api/admin/reports/pii-escalations",
+    response_model=list[ReportQueueResponse],
+)
+def list_pii_escalations(user=Depends(get_admin_user)):
+    try:
+        response = (
+            get_admin_client()
+            .table("reports")
+            .select(
+                "id,reference,report_type,description,status,created_at,assigned_to_email,"
+                "ai_language,ai_normalized_text,ai_category,ai_confidence,"
+                "ai_dispute_category,ai_summary,ai_review_required,ai_review_reason"
+            )
+            .eq("ai_pii_flagged", True)
+            .in_("status", ["pending", "reviewing"])
+            .order("created_at")
+            .limit(100)
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to load private PII escalations",
+        ) from exc
     return response.data
+
+
+@app.post(
+    "/api/admin/reports/{report_id}/pii-clear",
+    response_model=ReportQueueResponse,
+)
+def clear_report_pii(
+    report_id: str,
+    payload: PiiReportRedaction,
+    user=Depends(get_admin_user),
+):
+    if contains_targeted_pii(payload.description):
+        raise HTTPException(
+            status_code=422,
+            detail="Remove personal names and contact details before returning this report to review",
+        )
+    try:
+        existing = (
+            get_admin_client()
+            .table("reports")
+            .select("id")
+            .eq("id", report_id)
+            .eq("ai_pii_flagged", True)
+            .in_("status", ["pending", "reviewing"])
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Unable to verify private escalation") from exc
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Private escalation not found")
+    try:
+        triage = analyze_report(payload.description, get_settings())
+    except AIProviderError:
+        triage = _manual_review_result(payload.description, "provider_unavailable")
+    duplicate_of = _find_recent_duplicate(triage)
+    try:
+        response = (
+            get_admin_client()
+            .table("reports")
+            .update(
+                {
+                    "description": payload.description,
+                    **_triage_metadata(triage, duplicate_of),
+                }
+            )
+            .eq("id", report_id)
+            .eq("ai_pii_flagged", True)
+            .select(
+                "id,reference,report_type,description,status,created_at,assigned_to_email,"
+                "ai_language,ai_normalized_text,ai_category,ai_confidence,"
+                "ai_dispute_category,ai_summary,ai_review_required,ai_review_reason"
+            )
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to save the human-redacted report",
+        ) from exc
+    return _first(response.data)
+
+
+@app.post("/api/voice-notes/transcribe")
+async def transcribe_voice_note(
+    file: UploadFile = File(...),
+    user=Depends(get_verification_user),
+):
+    if not file.content_type or not file.content_type.startswith("audio/"):
+        raise HTTPException(status_code=415, detail="Upload an audio file")
+    audio = await file.read(20 * 1024 * 1024 + 1)
+    if len(audio) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Audio file exceeds the 20 MB limit")
+    if not audio:
+        raise HTTPException(status_code=422, detail="Audio file is empty")
+    filename = (file.filename or "voice-note").replace('"', "").replace("\r", "").replace("\n", "")
+    try:
+        transcript = transcribe_audio(audio, filename, file.content_type, get_settings())
+    except AIProviderError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"transcript": transcript, "language": detect_language(transcript)}
 
 
 @app.get("/api/admin/reviewers", response_model=list[ReviewerResponse])
@@ -272,13 +479,32 @@ def publish_report(
     payload: ReportReviewCreate,
     user=Depends(get_verification_user),
 ):
+    try:
+        report_state = (
+            get_admin_client()
+            .table("reports")
+            .select("ai_pii_flagged")
+            .eq("id", report_id)
+            .in_("status", ["pending", "reviewing"])
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Unable to verify report safety status") from exc
+    if not report_state.data:
+        raise HTTPException(status_code=404, detail="Report not found or already reviewed")
+    if report_state.data[0]["ai_pii_flagged"]:
+        raise HTTPException(
+            status_code=409,
+            detail="This report is privately escalated and must be redacted by an administrator before publication",
+        )
     if not is_admin_user(user):
         email = user.email.strip().casefold()
         try:
             assigned_report = (
                 get_admin_client()
                 .table("reports")
-                .select("id")
+                .select("id,ai_pii_flagged")
                 .eq("id", report_id)
                 .eq("assigned_to_email", email)
                 .in_("status", ["pending", "reviewing"])
@@ -291,6 +517,11 @@ def publish_report(
             raise HTTPException(
                 status_code=403,
                 detail="You are not assigned to review this report",
+            )
+        if assigned_report.data[0]["ai_pii_flagged"]:
+            raise HTTPException(
+                status_code=409,
+                detail="This report is privately escalated and must be redacted by an administrator before publication",
             )
     try:
         response = get_admin_client().rpc(

@@ -74,7 +74,9 @@ dependencies = [
     { name = "asyncpg" },
     { name = "fastapi", extra = ["standard"] },
     { name = "psycopg", extra = ["binary"] },
+    { name = "pydantic-settings" },
     { name = "python-dotenv" },
+    { name = "python-multipart" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "supabase" },
 ]
@@ -84,7 +86,9 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.142.2" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.6" },
+    { name = "pydantic-settings", specifier = ">=2.7.1" },
     { name = "python-dotenv", specifier = ">=1.2.3" },
+    { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.1.1" },
     { name = "supabase", specifier = ">=2.32.0" },
 ]
