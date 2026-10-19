@@ -61,4 +61,4 @@ build/
 
 # === Database Dumps & Exports ===
 *.sql
-
+!migrations/*.sql

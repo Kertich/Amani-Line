@@ -2,7 +2,10 @@ from functools import lru_cache
 
 from supabase import Client, create_client
 
-from config import get_settings
+try:
+    from .config import get_settings
+except ImportError:  # pragma: no cover
+    from config import get_settings
 
 
 @lru_cache

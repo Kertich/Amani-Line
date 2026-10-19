@@ -18,6 +18,14 @@ class Settings(BaseSettings):
     ai_base_url: str = "https://api.openai.com/v1"
     ai_chat_model: str = "gpt-4o-mini"
     ai_transcription_model: str = "whisper-1"
+    at_callback_secret: str = ""
+    at_allowed_ips: str = ""
+    at_api_key: str = ""
+    at_username: str = "sandbox"
+    at_sms_url: str = "https://api.africastalking.com/version1/messaging"
+    at_shortcode: str = "40404"
+    reporter_hmac_pepper: str = ""
+    reporter_phone_encryption_key: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -44,6 +52,10 @@ class Settings(BaseSettings):
             for email in self.admin_emails.split(",")
             if email.strip()
         }
+
+    @property
+    def at_allowed_ip_set(self) -> set[str]:
+        return {ip.strip() for ip in self.at_allowed_ips.split(",") if ip.strip()}
 
 
 @lru_cache

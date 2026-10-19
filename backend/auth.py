@@ -3,8 +3,12 @@ from typing import Any
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from config import get_settings
-from supabase_client import get_admin_client, get_auth_client
+try:
+    from .config import get_settings
+    from .supabase_client import get_admin_client, get_auth_client
+except ImportError:  # pragma: no cover
+    from config import get_settings
+    from supabase_client import get_admin_client, get_auth_client
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -65,6 +69,21 @@ def is_admin_user(user: Any) -> bool:
         isinstance(email, str)
         and email.strip().casefold() in get_settings().admin_email_set
     )
+
+
+def get_reviewer_profile(user: Any) -> dict[str, Any] | None:
+    email = getattr(user, "email", None)
+    if not isinstance(email, str) or not email.strip():
+        return None
+    response = (
+        get_admin_client()
+        .table("report_reviewers")
+        .select("email,ward,display_name,role")
+        .eq("email", email.strip().casefold())
+        .limit(1)
+        .execute()
+    )
+    return response.data[0] if response.data else None
 
 
 def get_verification_user(user: Any = Depends(get_current_user)) -> Any:

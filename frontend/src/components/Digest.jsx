@@ -1,37 +1,37 @@
 import { useEffect, useState } from "react";
 import { Icon, StatusPill } from "./common";
-import { getUpdates } from "../api";
+import { correctUpdate, getUpdates } from "../api";
 
 const filters = [
   { label: "All updates", value: "" },
   { label: "Confirmed", value: "confirmed" },
-  { label: "Under review", value: "pending" },
   { label: "False", value: "false" },
+  { label: "Corrections & retractions", value: "corrections" },
 ];
 
 const emptyMessages = {
   "": "There are no community updates yet. Reports will appear here after they have been reviewed.",
   confirmed: "There are no confirmed updates yet. Check back after local reports have been verified.",
-  pending: "There are no updates currently marked as under review.",
-  false: "There are no corrections to share at the moment.",
+  false: "There are no updates marked false.",
+  corrections: "There are no corrected or retracted updates.",
 };
 
 function formatUpdateTime(value) {
   const createdAt = new Date(value);
   if (Number.isNaN(createdAt.getTime())) return "";
-  const minutes = Math.round((createdAt.getTime() - Date.now()) / 60000);
-  const formatter = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
-  if (Math.abs(minutes) < 60) return `Updated ${formatter.format(minutes, "minute")}`;
-  const hours = Math.round(minutes / 60);
-  if (Math.abs(hours) < 24) return `Updated ${formatter.format(hours, "hour")}`;
-  return `Updated ${formatter.format(Math.round(hours / 24), "day")}`;
+  return new Intl.DateTimeFormat("en-KE", {
+    dateStyle: "medium",
+    timeZone: "Africa/Nairobi",
+  }).format(createdAt);
 }
 
-export function Digest({ navigate }) {
+export function Digest({ navigate, canModerateUpdates = false }) {
   const [filter, setFilter] = useState("");
   const [updates, setUpdates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [moderationDrafts, setModerationDrafts] = useState({});
+  const [savingUpdate, setSavingUpdate] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -51,6 +51,22 @@ export function Digest({ navigate }) {
       active = false;
     };
   }, [filter]);
+
+  async function handleCorrection(item) {
+    const draft = moderationDrafts[item.id] || {};
+    if (!draft.reason?.trim()) return;
+    setSavingUpdate(item.id);
+    setError("");
+    try {
+      await correctUpdate(item.id, draft.action || "correct", draft.reason.trim());
+      setUpdates(await getUpdates(filter));
+      setModerationDrafts((current) => ({ ...current, [item.id]: { ...draft, reason: "" } }));
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSavingUpdate("");
+    }
+  }
 
   return (
     <main className="inner-page">
@@ -108,17 +124,80 @@ export function Digest({ navigate }) {
           updates.map((item) => (
             <article className="update-card" key={item.id}>
               <div className="update-icon" aria-hidden="true">
-                {item.status === "confirmed" ? "✓" : item.status === "false" ? "×" : "◷"}
+                {item.workflow_status === "retracted"
+                  ? "!"
+                  : item.workflow_status === "corrected"
+                    ? "↻"
+                    : item.status === "confirmed" ? "✓" : "×"}
               </div>
               <div className="update-main">
                 <div className="update-top">
                   <StatusPill status={item.status} />
-                  <span>{formatUpdateTime(item.created_at)}</span>
+                  <span>{formatUpdateTime(item.published_at)}</span>
                 </div>
+                {["corrected", "retracted"].includes(item.workflow_status) && (
+                  <aside className={`correction-banner ${item.workflow_status}`} role="status">
+                    <strong>
+                      {item.workflow_status === "retracted" ? "RETRACTED UPDATE" : "CORRECTION"}
+                    </strong>
+                    {item.correction_reason && <p>{item.correction_reason}</p>}
+                    {item.correction_history?.length > 1 && (
+                      <details>
+                        <summary>Correction history</summary>
+                        <ol>
+                          {item.correction_history.map((event, index) => (
+                            <li key={`${event.created_at}-${index}`}>
+                              <strong>{event.action}</strong>
+                              {event.reason && <span> — {event.reason}</span>}
+                              <small>{event.actor_label} · {formatUpdateTime(event.created_at)}</small>
+                            </li>
+                          ))}
+                        </ol>
+                      </details>
+                    )}
+                  </aside>
+                )}
                 <h3>{item.title}</h3>
                 <p>{item.detail}</p>
-                {item.source && (
-                  <div className="source">Source: {item.source}</div>
+                <div className="source">
+                  Source: {item.source || "Not listed"}
+                </div>
+                <div className="source">{item.publisher_label}</div>
+                {canModerateUpdates && ["published", "corrected"].includes(item.workflow_status) && (
+                  <div className="correction-controls">
+                    <label>
+                      Record a correction or retraction
+                      <select
+                        value={moderationDrafts[item.id]?.action || "correct"}
+                        onChange={(event) => setModerationDrafts((current) => ({
+                          ...current,
+                          [item.id]: { ...current[item.id], action: event.target.value },
+                        }))}
+                        disabled={savingUpdate === item.id}
+                      >
+                        <option value="correct">Correct</option>
+                        <option value="retract">Retract</option>
+                      </select>
+                    </label>
+                    <textarea
+                      value={moderationDrafts[item.id]?.reason || ""}
+                      maxLength={2000}
+                      rows={2}
+                      placeholder="Reason required; the original remains visible"
+                      onChange={(event) => setModerationDrafts((current) => ({
+                        ...current,
+                        [item.id]: { ...current[item.id], reason: event.target.value },
+                      }))}
+                      disabled={savingUpdate === item.id}
+                    />
+                    <button
+                      className="danger-button"
+                      disabled={savingUpdate === item.id || !moderationDrafts[item.id]?.reason?.trim()}
+                      onClick={() => handleCorrection(item)}
+                    >
+                      {savingUpdate === item.id ? "Saving..." : "Record correction"}
+                    </button>
+                  </div>
                 )}
               </div>
             </article>

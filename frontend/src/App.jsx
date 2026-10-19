@@ -28,6 +28,8 @@ function App() {
   const [user, setUser] = useState(null);
   const [canVerify, setCanVerify] = useState(false);
   const [canAdmin, setCanAdmin] = useState(false);
+  const [canManageQueue, setCanManageQueue] = useState(false);
+  const [reviewerWard, setReviewerWard] = useState("");
   const [authChecked, setAuthChecked] = useState(false);
   const t = copy[language];
 
@@ -37,6 +39,8 @@ function App() {
       setUser(null);
       setCanVerify(false);
       setCanAdmin(false);
+      setCanManageQueue(false);
+      setReviewerWard("");
       setAuthChecked(true);
       return () => {
         active = false;
@@ -49,6 +53,8 @@ function App() {
           setUser(response.user);
           setCanVerify(response.can_verify);
           setCanAdmin(response.can_admin);
+          setCanManageQueue(response.can_manage_queue);
+          setReviewerWard(response.ward || "");
         }
       })
       .catch((error) => {
@@ -60,6 +66,8 @@ function App() {
         setUser(null);
         setCanVerify(false);
         setCanAdmin(false);
+        setCanManageQueue(false);
+        setReviewerWard("");
       })
       .finally(() => {
         if (active) setAuthChecked(true);
@@ -95,6 +103,8 @@ function App() {
     setUser(nextUser);
     setCanVerify(false);
     setCanAdmin(false);
+    setCanManageQueue(false);
+    setReviewerWard("");
     setAuthChecked(false);
     setView(nextView);
   };
@@ -105,6 +115,8 @@ function App() {
     setUser(null);
     setCanVerify(false);
     setCanAdmin(false);
+    setCanManageQueue(false);
+    setReviewerWard("");
     setView("home");
   };
 
@@ -124,7 +136,12 @@ function App() {
       />
 
       {view === "home" && <Home t={t} navigate={navigate} />}
-      {view === "digest" && <Digest navigate={navigate} />}
+      {view === "digest" && (
+        <Digest
+          navigate={navigate}
+          canModerateUpdates={canAdmin || canManageQueue}
+        />
+      )}
       {view === "queue" && !authChecked && (
         <main className="form-page">
           <p className="form-message" role="status">
@@ -135,7 +152,13 @@ function App() {
       {view === "queue" &&
         authChecked &&
         (canVerify ? (
-          <VerificationQueue navigate={navigate} />
+          <VerificationQueue
+            navigate={navigate}
+            admin={canAdmin}
+            canManageQueue={canManageQueue}
+            ward={reviewerWard}
+            language={language}
+          />
         ) : session?.access_token ? (
           <main className="form-page">
             <button className="back" onClick={() => navigate("home")}>
@@ -188,7 +211,7 @@ function App() {
                 Assign and review reports <Icon name="arrow" />
               </button>
             </div>
-            <ReviewerAdmin />
+            <ReviewerAdmin language={language} />
           </main>
         ) : session?.access_token ? (
           <main className="form-page">

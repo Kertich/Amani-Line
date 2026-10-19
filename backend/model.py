@@ -14,6 +14,7 @@ class Base(DeclarativeBase):
 class ReportStatus(str, enum.Enum):
     PENDING = "pending"
     REVIEWING = "reviewing"
+    NEEDS_INFO = "needs_info"
     RESOLVED = "resolved"
     DISMISSED = "dismissed"
 
@@ -37,13 +38,53 @@ class CommunityUpdate(Base):
         nullable=False,
         server_default=UpdateStatus.PENDING.value
     )
+    workflow_status: Mapped[str] = mapped_column(
+        String, nullable=False, server_default=text("'draft'")
+    )
     title: Mapped[str] = mapped_column(String, nullable=False)
     detail: Mapped[str] = mapped_column(Text, nullable=False)
     source: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    author_email: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    approved_by_email: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    publisher_label: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    published_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    evidence_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    evidence_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    verification_method: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    source_report_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("public.reports.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), 
         nullable=False, 
         server_default=text("now()")
+    )
+    ward: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    priority: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+        server_default=text("'normal'"),
+    )
+    triage_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    first_response_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    channel: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+        server_default=text("'web'"),
+    )
+    reporter_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    language: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    possible_duplicate_of: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("public.reports.id", ondelete="SET NULL"),
+        nullable=True,
     )
 
 # 4. Reports Model

@@ -37,8 +37,32 @@ export function createReport(payload) {
   });
 }
 
-export function getReportQueue() {
-  return request("/api/reports/queue", { token: getStoredToken() });
+export function getReportQueue(filters = {}) {
+  const query = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) query.set(key, value);
+  });
+  const encoded = query.toString();
+  const suffix = encoded ? `?${encoded}` : "";
+  return request(`/api/reports/queue${suffix}`, { token: getStoredToken() });
+}
+
+export function getReportEvents(reportId) {
+  return request(`/api/reports/${encodeURIComponent(reportId)}/events`, {
+    token: getStoredToken(),
+  });
+}
+
+export function triageReport(reportId, payload) {
+  return request(`/api/reports/${encodeURIComponent(reportId)}/triage`, {
+    method: "PATCH",
+    token: getStoredToken(),
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getQueueReviewers() {
+  return request("/api/reports/reviewers", { token: getStoredToken() });
 }
 
 export function getPiiEscalations() {
@@ -63,15 +87,42 @@ export function publishReport(reportId, payload) {
   });
 }
 
+export function getPendingUpdates() {
+  return request("/api/updates/pending", { token: getStoredToken() });
+}
+
+export function approveUpdate(updateId) {
+  return request(`/api/updates/${encodeURIComponent(updateId)}/approve`, {
+    method: "POST",
+    token: getStoredToken(),
+  });
+}
+
+export function rejectUpdate(updateId, reason) {
+  return request(`/api/updates/${encodeURIComponent(updateId)}/reject`, {
+    method: "POST",
+    token: getStoredToken(),
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function correctUpdate(updateId, action, reason) {
+  return request(`/api/updates/${encodeURIComponent(updateId)}/correction`, {
+    method: "POST",
+    token: getStoredToken(),
+    body: JSON.stringify({ action, reason }),
+  });
+}
+
 export function getReviewers() {
   return request("/api/admin/reviewers", { token: getStoredToken() });
 }
 
-export function addReviewer(email) {
+export function addReviewer(email, displayName, ward) {
   return request("/api/admin/reviewers", {
     method: "POST",
     token: getStoredToken(),
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, display_name: displayName || null, ward: ward || null }),
   });
 }
 
@@ -124,6 +175,19 @@ export function createDispute(payload, token) {
   return request("/api/disputes", {
     method: "POST",
     token,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getDisputes(status = "") {
+  const suffix = status ? `?status=${encodeURIComponent(status)}` : "";
+  return request(`/api/admin/disputes${suffix}`, { token: getStoredToken() });
+}
+
+export function updateDispute(disputeId, payload) {
+  return request(`/api/admin/disputes/${encodeURIComponent(disputeId)}`, {
+    method: "PATCH",
+    token: getStoredToken(),
     body: JSON.stringify(payload),
   });
 }

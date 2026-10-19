@@ -9,22 +9,45 @@ FastAPI backend using Supabase Auth, Postgres, and Storage.
 3. Run `migrations/001_report_verification.sql` in the Supabase SQL editor.
 4. Run `migrations/002_admin_reviewers.sql` in the Supabase SQL editor.
 5. Run `migrations/003_ai_triage.sql` in the Supabase SQL editor.
-6. Copy `.env.example` to `.env` and add the project URL, anon key, and service-role key.
-7. Create a virtual environment and install dependencies:
+6. Run `migrations/004_messaging.sql` in the Supabase SQL editor.
+7. Run `migrations/005_needs_info_status.sql` in the Supabase SQL editor.
+8. Run `migrations/006_triage_dashboard.sql` in the Supabase SQL editor.
+9. Run `migrations/007_accountable_updates.sql` in the Supabase SQL editor. Existing updates without traceable author and publisher fields are kept out of the public feed; re-enter them as new report updates to publish them with accountable attribution.
+10. Copy `.env.example` to `.env` and add the project URL, anon key, and service-role key.
+   Configure Africa's Talking sandbox values for `AT_CALLBACK_SECRET`, `AT_API_KEY`, `AT_USERNAME`, `REPORTER_HMAC_PEPPER`, and `REPORTER_PHONE_ENCRYPTION_KEY`.
+11. Create a virtual environment and install dependencies from `pyproject.toml`:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+pip install -e ".[test]"
 ```
 
-8. Start the API:
+12. Start the API:
 
 ```powershell
-uvicorn backend.main:app --reload
+uvicorn main:app --reload
 ```
 
 The interactive API docs are available at `http://localhost:8000/docs`.
+
+## Africa's Talking sandbox + ngrok
+
+For USSD and SMS callbacks, expose the local API on a public URL and point Africa's Talking to that URL in the sandbox. A typical flow is:
+
+1. Start the API locally with `uvicorn main:app --reload`.
+2. Forward localhost:8000 with `ngrok http 8000` and copy the HTTPS URL.
+3. Set `AT_CALLBACK_SECRET` to a shared secret that the callback sender must send in the `X-AT-Secret` header or `?secret=` query string.
+4. Configure the Africa's Talking callback URL to `<ngrok-url>/api/ussd` and `<ngrok-url>/api/sms/inbound`.
+5. For a real sandbox test, send a request like:
+
+```powershell
+curl -X POST "http://localhost:8000/api/ussd" \
+  -H "X-AT-Secret: secret" \
+  --data "sessionId=123&serviceCode=*384*123#&phoneNumber=+254700000001&networkCode=&text=1*2*1*Fire near the market"
+```
+
+Use the same shared secret for the inbound SMS route. Keep response text short and use `CON ` / `END ` prefixes for USSD screens.
 
 ## Frontend integration
 
@@ -42,10 +65,13 @@ email addresses. Only those accounts can read the verification queue or publish
 reports; this is enforced by the API even if someone bypasses the frontend.
 Set `ADMIN_EMAILS` to a comma-separated list of trusted administrator email
 addresses. Administrators can authorize reviewers and assign reports from the
-frontend; only administrators can change grants or assignments. Verifiers can
-read and publish only reports assigned to their email address. `ADMIN_EMAILS`
-and `VERIFICATION_QUEUE_EMAILS` are bootstrap allowlists; manage ongoing
-reviewer access through the administrator interface.
+frontend. A reviewer with a ward set in reviewer access management becomes a
+ward-scoped manager; the API limits their report queue, detail, triage, publish,
+and assignment access to that ward. Reports without a ward remain visible only
+to global administrators until routed. Reviewers without a ward can read and
+publish only reports assigned to their email address. `ADMIN_EMAILS` and
+`VERIFICATION_QUEUE_EMAILS` are bootstrap allowlists; manage ongoing reviewer
+access through the administrator interface.
 Bootstrap administrator addresses must also have accounts in Supabase Auth.
 Reviewers need to register/sign in using the exact email address an admin
 authorizes.
@@ -88,12 +114,17 @@ connect that integration to the transcription endpoint separately.
 - `POST /api/auth/signup` and `POST /api/auth/login`
 - `GET /api/auth/me`
 - `POST /api/reports` (anonymous or authenticated)
-- `GET /api/reports/queue` (assigned reviewer or administrator)
+- `GET /api/reports/queue` (scoped queue with filters, pagination, SLA age, and ward-safe possible duplicates)
+- `GET /api/reports/{report_id}/events` and `PATCH /api/reports/{report_id}/triage` (authorized reviewer or ward manager)
+- `GET /api/reports/reviewers` (global or ward-scoped assignment list)
 - `GET /api/admin/reports/pii-escalations` and `POST /api/admin/reports/{report_id}/pii-clear` (administrator)
 - `POST /api/voice-notes/transcribe` (authorized verifier, configured AI provider)
-- `POST /api/reports/{report_id}/publish` (assigned reviewer or administrator; publishes a confirmed/false community update)
+- `POST /api/reports/{report_id}/publish` (reviewers submit for approval; administrators publish directly)
+- `GET /api/updates/pending`, `POST /api/updates/{update_id}/approve`, and `POST /api/updates/{update_id}/reject` (administrator or ward administrator; approval requires a different author)
+- `POST /api/updates/{update_id}/correction` (record a reasoned correction or retraction; original content is retained)
 - `GET /api/admin/reviewers`, `POST /api/admin/reviewers`, and `DELETE /api/admin/reviewers/{email}` (administrator)
-- `PATCH /api/admin/reports/{report_id}/assignment` (administrator)
-- `GET /api/updates?status=confirmed`
+- `PATCH /api/admin/reports/{report_id}/assignment` (global or ward-scoped manager)
+- `GET /api/admin/disputes` and `PATCH /api/admin/disputes/{dispute_id}` (administrator)
+- `GET /api/updates?status=confirmed` (public-safe publisher attribution and correction history; never author/approver email)
 - `POST /api/disputes` (authenticated)
 - `POST /api/storage/upload-url` (authenticated)
