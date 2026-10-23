@@ -1589,6 +1589,12 @@ textarea::placeholder,
 input::placeholder {
   color: #a5aea9;
 }
+.field-hint {
+  display: block;
+  margin: -5px 0 20px;
+  color: #78857f;
+  font-size: 11px;
+}
 .form-foot {
   display: flex;
   align-items: center;

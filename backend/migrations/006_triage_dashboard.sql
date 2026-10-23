@@ -106,7 +106,7 @@ for each row execute function public.audit_dispute_creation();
 create or replace function public.flag_possible_report_duplicate()
 returns trigger
 language plpgsql
-set search_path = 'public, extensions'
+set search_path = public, extensions
 as $$
 declare
   match_id uuid;

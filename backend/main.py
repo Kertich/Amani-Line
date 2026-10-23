@@ -235,6 +235,7 @@ def _save_report(
         "report_type": payload.report_type,
         "description": payload.description,
         "attachment_path": payload.attachment_path,
+        "ward": payload.ward,
         "status": "pending",
         "user_id": str(user.id) if user else None,
         "channel": channel,
@@ -245,6 +246,11 @@ def _save_report(
     try:
         response = get_admin_client().table("reports").insert(row).execute()
     except Exception as exc:
+        logger.exception(
+            "Unable to save report (channel=%s, ward_provided=%s)",
+            channel,
+            bool(payload.ward),
+        )
         raise HTTPException(status_code=500, detail="Unable to save report") from exc
     report = _first(response.data)
     result = {
@@ -511,6 +517,8 @@ async def inbound_sms(request: Request):
 
 @app.post("/api/reports", status_code=status.HTTP_201_CREATED)
 def create_report(payload: ReportCreate, user=Depends(get_optional_user)):
+    if not payload.ward:
+        raise HTTPException(status_code=422, detail="Ward is required for web reports")
     return _save_report(payload, user, channel="web")
 
 

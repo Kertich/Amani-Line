@@ -246,6 +246,7 @@ function App() {
           reference={reportReference}
           setReference={setReportReference}
           navigate={navigate}
+          language={language}
         />
       )}
       {view === "auth" && (
