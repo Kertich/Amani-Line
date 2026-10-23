@@ -12,9 +12,23 @@ export function Report({
   reference,
   setReference,
   navigate,
+  language = "en",
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [ward, setWard] = useState("");
+  const copy =
+    language === "sw"
+      ? {
+          ward: "Kata",
+          wardPlaceholder: "Kwa mfano, Mlolongo",
+          wardHelp: "Tumia jina sawa na lililowekwa kwa wakaguzi wa kata yako.",
+        }
+      : {
+          ward: "Your ward",
+          wardPlaceholder: "For example, Mlolongo",
+          wardHelp: "Use the same ward name set for your local reviewers.",
+        };
 
   if (submitted)
     return (
@@ -44,6 +58,7 @@ export function Report({
             onClick={() => {
               setSubmitted(false);
               setReport("");
+              setWard("");
               setReference("");
               setError("");
             }}
@@ -89,6 +104,7 @@ export function Report({
               const result = await createReport({
                 report_type: reportType,
                 description: report.trim(),
+                ward: ward.trim(),
               });
               setReference(result.reference);
               setSubmitted(true);
@@ -114,6 +130,17 @@ export function Report({
               ),
             )}
           </div>
+          <label htmlFor="ward">{copy.ward}</label>
+          <input
+            id="ward"
+            type="text"
+            maxLength={120}
+            value={ward}
+            onChange={(e) => setWard(e.target.value)}
+            placeholder={copy.wardPlaceholder}
+            required
+          />
+          <small className="field-hint">{copy.wardHelp}</small>
           <label htmlFor="report">Tell us a little more</label>
           <textarea
             id="report"

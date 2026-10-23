@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, Text, DateTime, ForeignKey, text
+from sqlalchemy import Boolean, Float, String, Text, DateTime, ForeignKey, text
 from sqlalchemy.dialects.postgresql import UUID, ENUM
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -63,29 +63,6 @@ class CommunityUpdate(Base):
         nullable=False, 
         server_default=text("now()")
     )
-    ward: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    priority: Mapped[str] = mapped_column(
-        String,
-        nullable=False,
-        server_default=text("'normal'"),
-    )
-    triage_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    first_response_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-    )
-    channel: Mapped[str] = mapped_column(
-        String,
-        nullable=False,
-        server_default=text("'web'"),
-    )
-    reporter_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    language: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    possible_duplicate_of: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("public.reports.id", ondelete="SET NULL"),
-        nullable=True,
-    )
 
 # 4. Reports Model
 class Report(Base):
@@ -118,6 +95,48 @@ class Report(Base):
         nullable=False,
         server_default=ReportStatus.PENDING.value
     )
+    assigned_to_email: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ai_language: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ai_normalized_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ai_category: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ai_confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    ai_dispute_category: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ai_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ai_review_required: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
+    ai_review_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ai_pii_flagged: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
+    ai_duplicate_of: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("public.reports.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    ward: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    priority: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        server_default=text("'normal'"),
+    )
+    triage_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    first_response_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    possible_duplicate_of: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("public.reports.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    channel: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        server_default=text("'web'"),
+    )
+    reporter_hash: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    language: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), 
         nullable=False, 
@@ -143,6 +162,9 @@ class DisputeRequest(Base):
     desired_outcome: Mapped[str] = mapped_column(Text, nullable=False)
     contact_phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False, server_default="received")
+    resolution_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    assigned_to_email: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    triage_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), 
         nullable=False, 

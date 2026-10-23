@@ -67,11 +67,13 @@ Set `ADMIN_EMAILS` to a comma-separated list of trusted administrator email
 addresses. Administrators can authorize reviewers and assign reports from the
 frontend. A reviewer with a ward set in reviewer access management becomes a
 ward-scoped manager; the API limits their report queue, detail, triage, publish,
-and assignment access to that ward. Reports without a ward remain visible only
-to global administrators until routed. Reviewers without a ward can read and
-publish only reports assigned to their email address. `ADMIN_EMAILS` and
-`VERIFICATION_QUEUE_EMAILS` are bootstrap allowlists; manage ongoing reviewer
-access through the administrator interface.
+and assignment access to that ward. Website reports ask for a ward and route
+to matching ward-scoped reviewers; the reporter must use the same ward name
+configured for those reviewers. Reports received through SMS or USSD without a
+ward remain visible only to global administrators until routed. Reviewers
+without a ward can read and publish only reports assigned to their email
+address. `ADMIN_EMAILS` and `VERIFICATION_QUEUE_EMAILS` are bootstrap
+allowlists; manage ongoing reviewer access through the administrator interface.
 Bootstrap administrator addresses must also have accounts in Supabase Auth.
 Reviewers need to register/sign in using the exact email address an admin
 authorizes.

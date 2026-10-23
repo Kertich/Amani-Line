@@ -431,34 +431,39 @@ export function TriageDashboard({
       setSelectedReport(null);
       setMessage(result.workflow_status === "published" ? t.publishedDirectly : t.submittedForApproval);
       await loadQueue();
+      // Refresh the approval list so a newly submitted draft appears
+      if (canManageQueue) setPendingUpdates(await getPendingUpdates());
     } catch (requestError) {
       setError(requestError.message);
     } finally {
       setBusy(false);
     }
+  }
 
-    async function handleApproval(updateId, action) {
-      setBusy(true);
-      setError("");
-      setMessage("");
-      try {
-        if (action === "approve") {
-          await approveUpdate(updateId);
-        } else {
-          const reasonText = rejectionReasons[updateId]?.trim();
-          if (!reasonText) {
-            setError(t.rejectionReason);
-            return;
-          }
-          await rejectUpdate(updateId, reasonText);
-        }
-        setPendingUpdates((current) => current.filter((item) => item.id !== updateId));
-        setMessage(t.success);
-      } catch (requestError) {
-        setError(requestError.message);
-      } finally {
-        setBusy(false);
+  async function handleApproval(updateId, action) {
+    const reasonText = rejectionReasons[updateId]?.trim();
+    if (action === "reject" && !reasonText) {
+      setError(t.rejectionReason);
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      if (action === "approve") {
+        await approveUpdate(updateId);
+      } else {
+        await rejectUpdate(updateId, reasonText);
       }
+      setPendingUpdates((current) =>
+        current.filter((item) => item.id !== updateId),
+      );
+      setMessage(t.success);
+      await loadQueue();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setBusy(false);
     }
   }
 

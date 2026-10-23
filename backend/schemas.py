@@ -21,6 +21,7 @@ class ReportCreate(BaseModel):
     report_type: Literal["Rumour to check", "Local issue", "Safety concern"]
     description: str = Field(min_length=1, max_length=5000)
     attachment_path: str | None = None
+    ward: str | None = Field(default=None, max_length=120)
 
     @field_validator("description")
     @classmethod
@@ -28,6 +29,14 @@ class ReportCreate(BaseModel):
         if not value.strip():
             raise ValueError("Report description cannot be blank")
         return value
+
+    @field_validator("ward")
+    @classmethod
+    def normalize_ward(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
 
 
 class PiiReportRedaction(BaseModel):
