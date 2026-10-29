@@ -5,6 +5,7 @@ from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 
 from backend import main
+from backend.sms import send_sms
 from backend.triage import TriageResult
 
 
@@ -179,3 +180,26 @@ def test_inbound_sms_verify_creates_report_and_returns_reference():
     payload = response.json()
     assert payload["status"] == "ok"
     assert payload["reference"] == "AMN-ABC123"
+
+
+def test_send_sms_uses_africas_talking_sandbox_api():
+    settings = build_settings()
+    settings.at_api_key = "sandbox-api-key"
+    settings.at_sms_url = "https://api.sandbox.africastalking.com/version1/messaging"
+    response = MagicMock()
+    response.raise_for_status.return_value = None
+
+    with patch("backend.sms.httpx.post", return_value=response) as post:
+        result = send_sms("+254700000001", "Report received", settings)
+
+    post.assert_called_once_with(
+        settings.at_sms_url,
+        headers={"apiKey": "sandbox-api-key", "Accept": "application/json"},
+        data={
+            "username": "sandbox",
+            "to": "+254700000001",
+            "message": "Report received",
+        },
+        timeout=10,
+    )
+    assert result == {"mock": False}
