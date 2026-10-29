@@ -14,7 +14,7 @@ FastAPI backend using Supabase Auth, Postgres, and Storage.
 8. Run `migrations/006_triage_dashboard.sql` in the Supabase SQL editor.
 9. Run `migrations/007_accountable_updates.sql` in the Supabase SQL editor. Existing updates without traceable author and publisher fields are kept out of the public feed; re-enter them as new report updates to publish them with accountable attribution.
 10. Copy `.env.example` to `.env` and add the project URL, anon key, and service-role key.
-   Configure Africa's Talking sandbox values for `AT_CALLBACK_SECRET`, `AT_API_KEY`, `AT_USERNAME`, `REPORTER_HMAC_PEPPER`, and `REPORTER_PHONE_ENCRYPTION_KEY`.
+    Configure Africa's Talking sandbox values for `AT_CALLBACK_SECRET`, `AT_API_KEY`, `AT_USERNAME=sandbox`, `AT_SMS_URL=https://api.sandbox.africastalking.com/version1/messaging`, `REPORTER_HMAC_PEPPER`, and `REPORTER_PHONE_ENCRYPTION_KEY`. The sandbox SMS URL is the default; keep it for testing and only use the production URL when switching to a live account.
 11. Create a virtual environment and install dependencies from `pyproject.toml`:
 
 ```powershell
@@ -37,8 +37,8 @@ For USSD and SMS callbacks, expose the local API on a public URL and point Afric
 
 1. Start the API locally with `uvicorn main:app --reload`.
 2. Forward localhost:8000 with `ngrok http 8000` and copy the HTTPS URL.
-3. Set `AT_CALLBACK_SECRET` to a shared secret that the callback sender must send in the `X-AT-Secret` header or `?secret=` query string.
-4. Configure the Africa's Talking callback URL to `<ngrok-url>/api/ussd` and `<ngrok-url>/api/sms/inbound`.
+3. Set `AT_CALLBACK_SECRET` to a shared secret, then append it to each callback URL as `?secret=<url-encoded-secret>`; the API also accepts it in an `X-AT-Secret` header for local testing.
+4. Configure the Africa's Talking USSD callback URL to `<ngrok-url>/api/ussd?secret=<url-encoded-secret>` and the inbound SMS callback URL to `<ngrok-url>/api/sms/inbound?secret=<url-encoded-secret>`. In the sandbox dashboard, configure the USSD service code and inbound SMS callback separately.
 5. For a real sandbox test, send a request like:
 
 ```powershell

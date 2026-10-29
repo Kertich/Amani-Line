@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     at_allowed_ips: str = ""
     at_api_key: str = ""
     at_username: str = "sandbox"
-    at_sms_url: str = "https://api.africastalking.com/version1/messaging"
+    at_sms_url: str = "https://api.sandbox.africastalking.com/version1/messaging"
     at_shortcode: str = "40404"
     reporter_hmac_pepper: str = ""
     reporter_phone_encryption_key: str = ""
